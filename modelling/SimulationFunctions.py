@@ -174,8 +174,8 @@ def getVelocityData(data, column):
         [np.ndarray]: time values, column values
     """
     valid = ~(np.isnan(data.t) | np.isnan(data[column]))
-    velocities = list(map(convToRadPerSec, data[column][valid].values))
-    return data.t[valid].values, velocities
+    # velocities = list(map(convToRadPerSec, data[column][valid].values))
+    return data.t[valid].values, data[column][valid].values
 
 
 def filterHeaderArray(regex, array):

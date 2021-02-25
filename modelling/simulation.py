@@ -13,6 +13,7 @@ from SimulationFunctions import (angVelocity,
                                  getVelocityData,
                                  filterHeaderArray,
                                  straight_line,
+                                 convToRadPerSec,
                                  getArrToFirstZero)
 
 # ----------------------------------------------------------------
@@ -48,7 +49,7 @@ axis_label = {"fontname": 'Times New Roman', "fontsize": 20}
 
 # ----------------------------------
 # Simulations for varying thickness:
-
+"""
 # Setting up variables beforehand
 thicknesses = [1, 0.1, 0.01, 0.001, 0.0001]
 time = np.linspace(0.00001, 5, 10000)
@@ -77,9 +78,11 @@ createPlot(times, ln_ang_vels, labels)
 plt.xlabel("time / s", **axis_label)
 plt.ylabel(r"Ln($\omega$)", **axis_label)
 plt.show()
-
+"""
 # -------------------------------------
 # Simulations for varying conductivity:
+"""
+conductivities = np.linspace(0, 1e9) 
 
 conductivities = [1e6, 1e7, 2.4187562189e7, 1e8]
 times = []
@@ -108,10 +111,10 @@ createPlot(times, ln_ang_vels, labels)
 plt.xlabel("time / s", **axis_label)
 plt.ylabel(r"Ln($\omega$)", **axis_label)
 plt.show()
-
+"""
 # ----------------------------------------------
 # Simulations for time const. dependence on B^2:
-
+"""
 flux = np.linspace(0, 100e-3, 10000)
 inv_taus = []
 labels = []
@@ -125,11 +128,12 @@ plt.xlabel(r"$B^{2}$ / $T^{2}$", **axis_label)
 plt.ylabel(r"$\tau^{-1}$ / $s^{-1}$", **axis_label)
 
 plt.show()
-
+"""
 # ----------------------------------------------
 # Checking measured inverse tau predictions
-
+"""
 data, headers = getExcelData('improved_table.xlsx')
+#data.applymap(convToRadPerSec)
 ang_headers = filterHeaderArray(r"[R][A-C]\d+", headers)
 
 popts = {38.6: [], 55.3: [], 72.4: []}
@@ -137,12 +141,19 @@ pcovs = {38.6: [], 55.3: [], 72.4: []}
 perrors = {38.6: [], 55.3: [], 72.4: []}
 taus = {38.6: [], 55.3: [], 72.4: []}
 
+plots = {"times": [], "vels": [], "labels": []}
+
 for header in ang_headers:
     time, vel = getVelocityData(data, header)
     vel = getArrToFirstZero(vel)
     time = time[:len(vel)]
     vel = np.log(vel)
     popt, pcov = curve_fit(straight_line, time, vel)
+
+    if (header[1] == 'A') and (int(header[2]) < 10): # and (header[2] in ["4", "5", "6", "7", "8"]):
+        plots["times"].append(time)
+        plots["vels"].append(np.exp(vel))
+        plots["labels"].append(header)
 
     if header[1] == 'A':
         popts[38.6].append(popt)
@@ -168,5 +179,48 @@ for ((k1, params), errors) in zip(taus.items(), perrors.values()):
         if (error[0] / param) < 0.15:
             low_error_taus[k1].append(param)
             std_devs[k1].append(error[0])
-            print(f"{k1}: {param} +- {error[0]}")
+            # print(f"{k1}: {param} +- {error[0]}")
 
+createPlot(plots["times"], plots["vels"], plots["labels"])
+plt.show()
+"""
+# ------------------------------
+# Conductivity
+"""
+conductivities = np.linspace(0, 1e8, 10000)
+inv_taus = []
+
+for c in conductivities:
+    R = 0.87 / (c * thickness)
+    r = w / (c * l * thickness)
+    m = (c * thickness * l * w * (L**2)) / ((1 + (R / r)) * K)
+    inv_taus.append(invTau(tau0, m, B0))
+createPlot(conductivities, inv_taus)
+
+plt.xlabel(r"Conductivity / ($\Omega$m)$^{-1}$", **axis_label)
+plt.ylabel(r"$\tau^{-1}$ / $s^{-1}$", **axis_label)
+
+plt.show()
+"""
+# -------------------------------
+# Thickness
+"""
+thicknesses = np.linspace(0, 7e-3, 10000)
+inv_taus = []
+
+for t in thicknesses:
+    R = 0.87 / (conductivity * t)
+    r = w / (conductivity * l * t)
+    m = (conductivity * t * l * w * (L**2)) / ((1 + (R / r)) * K)
+    inv_taus.append(invTau(tau0, m, B0))
+
+createPlot(thicknesses * 1000, inv_taus)
+
+xticks = range(0, 8)
+plt.xticks(xticks)
+
+plt.xlabel("Thickness / mm", **axis_label)
+plt.ylabel(r"$\tau^{-1}$ / $s^{-1}$", **axis_label)
+
+plt.show()
+"""
