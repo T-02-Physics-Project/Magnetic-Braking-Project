@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import curve_fit
 
-data = pd.read_excel('al0.xlsx', skiprows=1) #The file must have the time column headed with t, and the voltage columns headed with R
+data = pd.read_excel('al398.xlsx', skiprows=1) #The file must have the time column headed with t, and the voltage columns headed with R
 column_headers = list(data.columns) 
 filter = re.compile(r'[R]\d+')
 volt_headers = [header for header in column_headers if filter.findall(header)]
@@ -33,11 +33,10 @@ for measurement in volt_headers:
     i=0
     
     while i < len(data.t):   #for the entire set of V
+        if abs(data.t[i]) >= -data.t[1]:     #ignores any values for which |t| > 10 - hash out for full set
+            i+=1
+            continue
         
-        if abs(data.t[i]) >= 10:     #ignores any values for which |t| > 10 - hash out for full set
-           i+=1
-           continue
-           #print("v = {}, i = {}".format(v[i],i))
         if v[i] < 38:                                           #checks if the voltage is below a certain threshold, may need altering depending on dataset
 
             #print("\n    v < 10!    t = {}\n".format(t[i]))
@@ -47,12 +46,12 @@ for measurement in volt_headers:
                 if tempt == 0:                                  #if the temp holder is empty, treat the found value as the first reference point 
                     tempt = data.t[i]
                 else:
-                    if data.t[i]-tempt > 0.02:                       #otherwise if the difference in time to the temp holder is greater than a certain interval, store the time diff. - threshold may need altering depending on dataset
+                    if data.t[i] -tempt > 0.02:                       #otherwise if the difference in time to the temp holder is greater than a certain interval, store the time diff. - threshold may need altering depending on dataset
 
                         #print("     time step > 0.01\n")
-                        w.append(2*np.pi/(data.t[i]-tempt))
-                        t_w.append(data.t[i])
-                        tempt=data.t[i]                              #note this time as the new reference point
+                        w.append(2*np.pi/(data.t[i]  -tempt))
+                        t_w.append(data.t[i]-data.t[0])
+                        tempt=data.t[i]                         #note this time as the new reference point
     
         i+=1
     
@@ -70,6 +69,7 @@ for measurement in volt_headers:
     ax2.plot(t_w,w,
              color=c,
              marker='x',
+             label = measurement,
              linestyle='none')
     ax1.plot(times,curve_val1,
              color=c,
@@ -78,12 +78,18 @@ for measurement in volt_headers:
              color=c,
              linestyle='--')
     print("For set", volt_headers[n-1],", the log of the data takes the form of a linear plot, defined as {:n} t + {:n}.".format(popt1[0],popt1[1]))
-    print("The data can then be plotted as an exponential plot, defined as e to the power of ({:n} t + {:n}).\n".format(popt2[0],popt2[1]))
+    print("The data can then be plotted as an exponential plot, defined as e to the power of ({:n} t + {:n}). This would imply an initial speed of {:n} radians per second.\n".format(popt2[0],popt2[1], np.exp(popt2[1])))
     n+=1 #moves to next measurement- this isn't necessary for the data, but it is to calculate the new colour
 
 
-plt.ylabel("Ln(τ)")
-plt.xlabel("time / s")
+ax1.set_xlabel('t/s')
+ax1.set_ylabel('ln(ω/rad$s^{-1}$)')
+ax2.set_xlabel('t/s')
+ax2.set_ylabel('ω/rad$s^{-1}$')
+ax2.legend()
+ax1.set_xlim(0)
+ax2.set_xlim(0)
+ax2.set_ylim(0)
 plt.show()
 
-fig.savefig('magbreak0.png') #saves the resulting graph
+fig.savefig('magbreak398.png') #saves the resulting graph
