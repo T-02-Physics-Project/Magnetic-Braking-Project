@@ -3,6 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import curve_fit
+import os
+
+os.chdir("C:\\Users\\ben\\Desktop\\gitrepos\\physics-project\\analysis")
 
 data = pd.read_excel('al398.xlsx', skiprows=1) #The file must have the time column headed with t, and the voltage columns headed with R
 column_headers = list(data.columns) 
@@ -52,9 +55,15 @@ for measurement in volt_headers:
                         w.append(2*np.pi/(data.t[i]  -tempt))
                         t_w.append(data.t[i]-data.t[0])
                         tempt=data.t[i]                         #note this time as the new reference point
-    
         i+=1
     
+    time = t_w
+    omega = w 
+    df = pd.DataFrame([time, omega])
+    df = df.T
+    df.to_csv(r'C:\Users\ben\Desktop\test.csv', index=False)
+    print(df)
+
     popt1, pcov1 =curve_fit(line, t_w, np.log(w))
     popt2, pcov2 =curve_fit(line2, t_w, w)
     times=np.linspace(min(t_w),max(t_w),1000)
