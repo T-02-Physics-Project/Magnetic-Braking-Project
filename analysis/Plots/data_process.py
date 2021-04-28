@@ -15,25 +15,33 @@ def g(t, m, c):
 def distance(x1, y1, x2, y2):
     return np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
+os.chdir("C:\\Users\\ben\Desktop\\gitrepos\\physics-project\\analysis\\data")
+
 data = {}
-decay_starts = {}
+decay_data = {}
 
 with open("data.json", 'r') as file:
     tmp_data = json.load(file)
-    data = tmp_data['high'] | tmp_data['low']
+    data = tmp_data['low'] | tmp_data['high']
     # This is only valid in python 3.9+, comment this line & uncomment the next ones if on previous version
     # data = tmp_data['high']
     # data.update(tmp_data['low'])
-with open("decay_starts.csv", 'r') as file:
-    reader = csv.DictReader(file, delimiter=',')
-    for row in reader:
-        decay_starts.update({row['n'].lower() + '.csv': np.float64(row['start'])})
+with open("decay_data.json", 'r') as file:
+    decay_data = json.load(file)
+
+names = list(data.keys())
 
 cleaned_data = {}
 
 n = 1
-for name, start_point in decay_starts.items():
+for name, params in decay_data.items():
+    # These are datasets this doesn't seem to work for
+    invalid = []#["br01.csv", "br098a.csv", "br098b.csv", "st01.csv"]
+    if name in invalid:
+        continue
     time_values = data[name]['t']
+    start_point = params['start']
+    gap = params['gap']
     if start_point < 0:
         start_point *= -1
     time_values = [(val + start_point) for val in time_values]
@@ -52,7 +60,7 @@ for name, start_point in decay_starts.items():
     for i in range(len(time_values)):
         time = time_values[i]
         volt = volt_values[i]
-        if 0 < time:
+        if True:
             if volt < 35:
                 if abs(volt_values[i+1] - volt) > 1:
                     if temp_t == 0:
@@ -71,7 +79,7 @@ for name, start_point in decay_starts.items():
                                 w_error = np.insert(w_error, n, w_err)
                                 temp_t = time
                             # Catch extreme spikes at ends of data set, doesn't catch all so more
-                            elif distance(time, vel, temp_t, w[-1]) < 30:
+                            elif distance(time, vel, temp_t, w[-1]) < gap:
                                 w = np.insert(w, n, vel)
                                 t_w = np.insert(t_w, n, time)
                                 w_error = np.insert(w_error, n, w_err)
@@ -83,28 +91,45 @@ for name, start_point in decay_starts.items():
     while i > 0:
         time, vel = t_w[i], w[i]
         n_time, n_vel = t_w[i - 1], w[i - 1]
-        if distance(time, vel, n_time, n_vel) > 15:
+        if distance(time, vel, n_time, n_vel) > gap:
             if n_vel < vel:
                 factor = vel / n_vel
                 rounded_factor = round(factor)
                 # If it can be adjusted, do
                 if abs(factor - rounded_factor) < 0.1:
                     n_vel *= rounded_factor
+                    w[i - 1] = n_vel
                     w_error[i - 1] *= rounded_factor
                 # else remove
                 else:
-                    w = np.delete(w, i)
-                    t_w = np.delete(t_w, i)
-                    w_error = np.delete(w_error, i)
+                    w = np.delete(w, i - 1)
+                    t_w = np.delete(t_w, i - 1)
+                    w_error = np.delete(w_error, i - 1)
                     N = w.size
                     i = N - 1
             elif n_vel > vel:
-                w = np.delete(w, i)
-                t_w = np.delete(t_w, i)
-                w_error = np.delete(w_error, i)
+                w = np.delete(w, i - 1)
+                t_w = np.delete(t_w, i - 1)
+                w_error = np.delete(w_error, i - 1)
                 N = w.size
                 i = N - 1
+                print("Deleting")
         i -= 1
+
+    ang_vels = np.array([], dtype=np.float64)
+    times = np.array([], dtype=np.float64)
+    errors = np.array([], dtype=np.float64)
+    for i in range(w.size):
+        n = ang_vels.size
+        valid = False
+        if t_w[i] > 0:
+            ang_vels = np.insert(ang_vels, n, w[i])
+            times = np.insert(times, n, t_w[i])
+            errors = np.insert(errors, n, w_error[i])
+            valid = True
+    w = ang_vels
+    t_w = times
+    w_error = errors
 
     cleaned_data.update({name: {'t_w': t_w, 'w': w, 'c': colour, 'err': w_error}})
     n += 2
