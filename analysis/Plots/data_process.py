@@ -17,18 +17,13 @@ def distance(x1, y1, x2, y2):
     return np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
 
-plot_format = {
-    "markersize": 4
-}
-label_format = {
-    "fontname": "Times New Roman",
-    "fontsize": 14
-}
-legend_format = {
-    "prop": font_manager.FontProperties(family="Times New Roman")
-}
-
 os.chdir("C:\\Users\\ben\Desktop\\gitrepos\\physics-project\\analysis\\data")
+
+show_plots = input("Show plotting?(y/n) ")
+if show_plots == 'y':
+    show_plots = True
+else:
+    show_plots = False
 
 data = {}
 decay_data = {}
@@ -180,16 +175,29 @@ magnetic_data = {
 plots = []
 plot_names = list(cleaned_data.keys())
 root_mean_square_errors = {
-    "1": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
-    "2": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
-    "3": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
-    "4": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model1_name": []}
+    "1": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": [],
+        "model2": [], "model2_name": [],
+        "model3": [], "model3_name": []
+    },
+    "2": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": [],
+        "model2": [], "model2_name": [],
+        "model3": [], "model3_name": []
+    },
+    "3": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": [],
+        "model2": [], "model2_name": [],
+        "model3": [], "model3_name": []
+    }
 }
 
 table1 = ['al047a.csv', 'al047b.csv', 'al098a.csv', 'al098b.csv', 'al148a.csv', 'al148b.csv', 'al198a.csv', 'al198b.csv', 'al398a.csv', 'al398b.csv']
 table2 = ['br047a.csv', 'br047b.csv', 'br098a.csv', 'br098b.csv', 'br148a.csv', 'br148b.csv', 'br198a.csv', 'br198b.csv', 'br398a.csv', 'br398b.csv']
 table3 = ['st047a.csv', 'st047b.csv', 'st098a.csv', 'st098b.csv', 'st148a.csv', 'st148b.csv', 'st198a.csv', 'st198b.csv', 'st398a.csv', 'st398b.csv']
-table4 = ['cu047a.csv', 'cu047b.csv', 'cu098a.csv', 'cu098b.csv', 'cu148a.csv', 'cu148b.csv', 'cu198a.csv', 'cu198b.csv', 'cu398a.csv', 'cu398b.csv']
 
 i = 0
 # Plot ln(w(t)) vs t
@@ -294,93 +302,116 @@ while i < len(plot_names):
         d_c_alternate = c_alternate * np.sqrt(((N / d)**2*((d_N/N)**2+(d_d/d)**2)+d_low_speed_zeta**2)/((N/d)+low_speed_zeta)**2 + 4*(magnetic_field**2)*(d_magnetic_field**2))
 
     # Produce model data
-    model1 = []
-    model2 = []
     if high_speed:
         model1 = [combined(val, w_0, N, high_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
         model1_name = "Combined Friction & Applied Field"
         model2 = [motion_dependent(val, w_0, high_speed_zeta, moment_inertia) for val in x]
         model2_name = "Motion Dependent Friction Only"
+        model3 = [constant(val, w_0, N, moment_inertia) for val in x]
+        model3_name = "Constant Friction Only"
     else:
-        model1 = [constant(val, w_0, N, moment_inertia) for val in x]
-        model1_name = "Constant Friction Only"
-        model2 = [combined(val, w_0, N, low_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
-        model2_name = "Combined Friction & Applied Field"
+        model3 = [constant(val, w_0, N, moment_inertia) for val in x]
+        model3_name = "Constant Friction Only"
+        model1 = [combined(val, w_0, N, low_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
+        model1_name = "Combined Friction & Applied Field"
+        model2 = [motion_dependent(val, w_0, low_speed_zeta, moment_inertia) for val in x]
+        model2_name = "Motion Dependent Friction Only"
 
     # Evaluate model by taking Root Mean Squared Error (RMSE)
     RMSE1 = 0
     RMSE2 = 0
+    RMSE3 = 0
     if high_speed:
         RMSE1 = rmse(y, model1)
         RMSE2 = rmse(y, model2)
+        RMSE3 = rmse(y, model3)
     if low_speed:
         RMSE1 = rmse(y, model1)
         RMSE2 = rmse(y, model2)
+        RMSE3 = rmse(y, model3)
 
     if plot in table1:
         if len(root_mean_square_errors["1"]['model1_name']) == 0:
             root_mean_square_errors["1"]['model1_name'].append(model1_name)
         if len(root_mean_square_errors["1"]['model2_name']) == 0:
             root_mean_square_errors["1"]['model2_name'].append(model2_name)
-        if plot[-5] == 'a':
-            root_mean_square_errors["1"]['field1'].append(magnetic_field)
-            root_mean_square_errors["1"]['model1'].append(RMSE1)
-        if plot[-5] == 'b':
-            root_mean_square_errors["1"]['field2'].append(magnetic_field)
-            root_mean_square_errors["1"]['model2'].append(RMSE2)
+        if len(root_mean_square_errors["1"]['model3_name']) == 0:
+            root_mean_square_errors["1"]['model3_name'].append(model3_name)
+        root_mean_square_errors["1"]['field1'].append(magnetic_field)
+        root_mean_square_errors["1"]['model1'].append(RMSE1)
+        root_mean_square_errors["1"]['field2'].append(magnetic_field)
+        root_mean_square_errors["1"]['model2'].append(RMSE2)
+        root_mean_square_errors["1"]['field3'].append(magnetic_field)
+        root_mean_square_errors["1"]['model3'].append(RMSE3)
+
     elif plot in table2:
         if len(root_mean_square_errors["2"]['model1_name']) == 0:
             root_mean_square_errors["2"]['model1_name'].append(model1_name)
         if len(root_mean_square_errors["2"]['model2_name']) == 0:
             root_mean_square_errors["2"]['model2_name'].append(model2_name)
-        if plot[-5] == 'a':
-            root_mean_square_errors["2"]['field1'].append(magnetic_field)
-            root_mean_square_errors["2"]['model1'].append(RMSE1)
-        if plot[-5] == 'b':
-            root_mean_square_errors["2"]['field2'].append(magnetic_field)
-            root_mean_square_errors["2"]['model2'].append(RMSE2)
+        if len(root_mean_square_errors["2"]['model3_name']) == 0:
+            root_mean_square_errors["2"]['model3_name'].append(model3_name)
+        root_mean_square_errors["2"]['field1'].append(magnetic_field)
+        root_mean_square_errors["2"]['model1'].append(RMSE1)
+        root_mean_square_errors["2"]['field2'].append(magnetic_field)
+        root_mean_square_errors["2"]['model2'].append(RMSE2)
+        root_mean_square_errors["2"]['field3'].append(magnetic_field)
+        root_mean_square_errors["2"]['model3'].append(RMSE3)
+
     elif plot in table3:
         if len(root_mean_square_errors["3"]['model1_name']) == 0:
             root_mean_square_errors["3"]['model1_name'].append(model1_name)
         if len(root_mean_square_errors["3"]['model2_name']) == 0:
             root_mean_square_errors["3"]['model2_name'].append(model2_name)
-        if plot[-5] == 'a':
-            root_mean_square_errors["3"]['field1'].append(magnetic_field)
-            root_mean_square_errors["3"]['model1'].append(RMSE1)
-        if plot[-5] == 'b':
-            root_mean_square_errors["3"]['field2'].append(magnetic_field)
-            root_mean_square_errors["3"]['model2'].append(RMSE2)
-    elif plot in table4:
-        if len(root_mean_square_errors["4"]['model1_name']) == 0:
-            root_mean_square_errors["4"]['model1_name'].append(model1_name)
-        if len(root_mean_square_errors["4"]['model2_name']) == 0:
-            root_mean_square_errors["4"]['model2_name'].append(model2_name)
-        if plot[-5] == 'a':
-            root_mean_square_errors["4"]['field1'].append(magnetic_field)
-            root_mean_square_errors["4"]['model1'].append(RMSE1)
-        if plot[-5] == 'b':
-            root_mean_square_errors["4"]['field2'].append(magnetic_field)
-            root_mean_square_errors["4"]['model2'].append(RMSE2)
+        if len(root_mean_square_errors["3"]['model3_name']) == 0:
+            root_mean_square_errors["3"]['model3_name'].append(model3_name)
+        root_mean_square_errors["3"]['field1'].append(magnetic_field)
+        root_mean_square_errors["3"]['model1'].append(RMSE1)
+        root_mean_square_errors["3"]['field2'].append(magnetic_field)
+        root_mean_square_errors["3"]['model2'].append(RMSE2)
+        root_mean_square_errors["3"]['field3'].append(magnetic_field)
+        root_mean_square_errors["3"]['model3'].append(RMSE3)
 
     # Plotting
 
+    # Use this variable if you want only 1 plot
+
     print(plot)
+
+    plot_format = {
+        "markersize": 4
+    }
+    label_format = {
+        "fontname": "Times New Roman",
+        "fontsize": 14
+    }
+    legend_format = {
+        "prop": font_manager.FontProperties(family="Times New Roman")
+    }
 
     fig = plt.figure(figsize=(8, 8))
 
     plt.errorbar(x, y, fmt="kx", yerr=err, label="Measured Data", elinewidth=0.9, capsize=2.0, **plot_format)
-    if high_speed:
-        plt.plot(x, model1, "k-", linewidth=0.9, label="Combined Model", **plot_format)
-        plt.plot(x, model2, "k--", linewidth=0.9, label="Motion Dependent Friction", **plot_format)
-    if low_speed:
-        plt.plot(x, model1, "k-", linewidth=0.9, label="Constant Model", **plot_format)
-        plt.plot(x, model2, "k--", linewidth=0.9, label="Combined Model", **plot_format)
+    if RMSE1 < 50:
+        plt.plot(x, model1, "k-", linewidth=0.9, label=model1_name, **plot_format)
+    if RMSE2 < 50:
+        plt.plot(x, model2, "k--", linewidth=0.9, label=model2_name, **plot_format)
+    if RMSE3 < 50:
+        plt.plot(x, model3, "k", linestyle='dashdot', linewidth=0.9, label=model3_name, **plot_format)
 
     plt.xlabel("Time / s", **label_format)
     plt.ylabel(r'$\omega$(t)', **label_format)
 
+    if max(err) > 70:
+        if high_speed:
+            plt.ylim(0, 250)
+        else:
+            plt.ylim(0, 50)
+
     plt.legend(**legend_format)
-    plt.show()
+
+    if show_plots:
+        plt.show()
 
     i += 1
 
