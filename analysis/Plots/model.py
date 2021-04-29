@@ -21,3 +21,6 @@ def rmse(y_actual, y_predicted):
     mse = np.square(np.subtract(y_actual, y_predicted)).mean()
     return math.sqrt(mse)
 
+
+def mpe(y_actual, y_predicted):
+    return np.mean(np.abs((y_actual - y_predicted)/y_actual))*100

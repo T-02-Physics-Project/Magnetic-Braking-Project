@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 from scipy.optimize import curve_fit
-from model import constant, combined, rmse, motion_dependent
+from model import constant, combined, rmse, motion_dependent, mpe
 
 
 def exp_(t, w_0, a, d):
@@ -177,21 +177,42 @@ plot_names = list(cleaned_data.keys())
 root_mean_square_errors = {
     "1": {
         "field1": [], "field2": [], "field3": [],
-        "model1": [], "model1_name": [],
-        "model2": [], "model2_name": [],
-        "model3": [], "model3_name": []
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
     },
     "2": {
         "field1": [], "field2": [], "field3": [],
-        "model1": [], "model1_name": [],
-        "model2": [], "model2_name": [],
-        "model3": [], "model3_name": []
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
     },
     "3": {
         "field1": [], "field2": [], "field3": [],
-        "model1": [], "model1_name": [],
-        "model2": [], "model2_name": [],
-        "model3": [], "model3_name": []
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
+    }
+}
+
+mean_percentage_errors = {
+    "1": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
+    },
+    "2": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
+    },
+    "3": {
+        "field1": [], "field2": [], "field3": [],
+        "model1": [], "model1_name": "Combined Friction & Applied Field",
+        "model2": [], "model2_name": "Motion Dependent Friction Only",
+        "model3": [], "model3_name": "Constant Friction Only"
     }
 }
 
@@ -318,59 +339,55 @@ while i < len(plot_names):
         model2_name = "Motion Dependent Friction Only"
 
     # Evaluate model by taking Root Mean Squared Error (RMSE)
-    RMSE1 = 0
-    RMSE2 = 0
-    RMSE3 = 0
-    if high_speed:
-        RMSE1 = rmse(y, model1)
-        RMSE2 = rmse(y, model2)
-        RMSE3 = rmse(y, model3)
-    if low_speed:
-        RMSE1 = rmse(y, model1)
-        RMSE2 = rmse(y, model2)
-        RMSE3 = rmse(y, model3)
+    RMSE1 = rmse(y, model1)
+    RMSE2 = rmse(y, model2)
+    RMSE3 = rmse(y, model3)
+
+    MPE1 = mpe(y, model1)
+    MPE2 = mpe(y, model2)
+    MPE3 = mpe(y, model3)
 
     if plot in table1:
-        if len(root_mean_square_errors["1"]['model1_name']) == 0:
-            root_mean_square_errors["1"]['model1_name'].append(model1_name)
-        if len(root_mean_square_errors["1"]['model2_name']) == 0:
-            root_mean_square_errors["1"]['model2_name'].append(model2_name)
-        if len(root_mean_square_errors["1"]['model3_name']) == 0:
-            root_mean_square_errors["1"]['model3_name'].append(model3_name)
         root_mean_square_errors["1"]['field1'].append(magnetic_field)
         root_mean_square_errors["1"]['model1'].append(RMSE1)
         root_mean_square_errors["1"]['field2'].append(magnetic_field)
         root_mean_square_errors["1"]['model2'].append(RMSE2)
         root_mean_square_errors["1"]['field3'].append(magnetic_field)
         root_mean_square_errors["1"]['model3'].append(RMSE3)
+        mean_percentage_errors["1"]['field1'].append(magnetic_field)
+        mean_percentage_errors["1"]['model1'].append(MPE1)
+        mean_percentage_errors["1"]['field2'].append(magnetic_field)
+        mean_percentage_errors["1"]['model2'].append(MPE2)
+        mean_percentage_errors["1"]['field3'].append(magnetic_field)
+        mean_percentage_errors["1"]['model3'].append(MPE3)
 
     elif plot in table2:
-        if len(root_mean_square_errors["2"]['model1_name']) == 0:
-            root_mean_square_errors["2"]['model1_name'].append(model1_name)
-        if len(root_mean_square_errors["2"]['model2_name']) == 0:
-            root_mean_square_errors["2"]['model2_name'].append(model2_name)
-        if len(root_mean_square_errors["2"]['model3_name']) == 0:
-            root_mean_square_errors["2"]['model3_name'].append(model3_name)
         root_mean_square_errors["2"]['field1'].append(magnetic_field)
         root_mean_square_errors["2"]['model1'].append(RMSE1)
         root_mean_square_errors["2"]['field2'].append(magnetic_field)
         root_mean_square_errors["2"]['model2'].append(RMSE2)
         root_mean_square_errors["2"]['field3'].append(magnetic_field)
         root_mean_square_errors["2"]['model3'].append(RMSE3)
+        mean_percentage_errors["2"]['field1'].append(magnetic_field)
+        mean_percentage_errors["2"]['model1'].append(MPE1)
+        mean_percentage_errors["2"]['field2'].append(magnetic_field)
+        mean_percentage_errors["2"]['model2'].append(MPE2)
+        mean_percentage_errors["2"]['field3'].append(magnetic_field)
+        mean_percentage_errors["2"]['model3'].append(MPE3)
 
     elif plot in table3:
-        if len(root_mean_square_errors["3"]['model1_name']) == 0:
-            root_mean_square_errors["3"]['model1_name'].append(model1_name)
-        if len(root_mean_square_errors["3"]['model2_name']) == 0:
-            root_mean_square_errors["3"]['model2_name'].append(model2_name)
-        if len(root_mean_square_errors["3"]['model3_name']) == 0:
-            root_mean_square_errors["3"]['model3_name'].append(model3_name)
         root_mean_square_errors["3"]['field1'].append(magnetic_field)
         root_mean_square_errors["3"]['model1'].append(RMSE1)
         root_mean_square_errors["3"]['field2'].append(magnetic_field)
         root_mean_square_errors["3"]['model2'].append(RMSE2)
         root_mean_square_errors["3"]['field3'].append(magnetic_field)
         root_mean_square_errors["3"]['model3'].append(RMSE3)
+        mean_percentage_errors["3"]['field1'].append(magnetic_field)
+        mean_percentage_errors["3"]['model1'].append(MPE1)
+        mean_percentage_errors["3"]['field2'].append(magnetic_field)
+        mean_percentage_errors["3"]['model2'].append(MPE2)
+        mean_percentage_errors["3"]['field3'].append(magnetic_field)
+        mean_percentage_errors["3"]['model3'].append(MPE3)
 
     # Plotting
 
@@ -417,3 +434,6 @@ while i < len(plot_names):
 
 with open("rmse.json", 'w') as file:
     json.dump(root_mean_square_errors, file)
+
+with open("mpe.json", 'w') as file:
+    json.dump(mean_percentage_errors, file)
