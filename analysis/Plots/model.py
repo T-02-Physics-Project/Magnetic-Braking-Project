@@ -2,6 +2,11 @@ import numpy as np
 import math
 
 
+def motion_dependent(time, initial_velocity, zeta, moment_inertia):
+    tau_0 = moment_inertia / zeta
+    return initial_velocity * np.exp(-time / tau_0)
+
+
 def combined(time, initial_velocity, n, zeta, moment_inertia, c, magnetic_field):
     w_prime = (initial_velocity + n / (zeta + c * magnetic_field ** 2))
     d = n / (zeta + c * magnetic_field ** 2)
