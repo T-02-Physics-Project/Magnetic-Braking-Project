@@ -1,19 +1,32 @@
-import csv
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as font_manager
 import numpy as np
 import os
 import json
 from scipy.optimize import curve_fit
+from model import constant, combined, rmse
 
 
-def f(t, N, w_0, d):
-    return w_0 * np.exp(-N*t) - d
+def exp_(t, w_0, a, d):
+    return w_0 * np.exp(-a*t) - d
 
-def g(t, m, c):
+def line(t, m, c):
     return m * t + c
 
 def distance(x1, y1, x2, y2):
     return np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+
+plot_format = {
+    "markersize": 4
+}
+label_format = {
+    "fontname": "Times New Roman",
+    "fontsize": 14
+}
+legend_format = {
+    "prop": font_manager.FontProperties(family="Times New Roman")
+}
 
 os.chdir("C:\\Users\\ben\Desktop\\gitrepos\\physics-project\\analysis\\data")
 
@@ -32,7 +45,7 @@ with open("decay_data.json", 'r') as file:
 names = list(data.keys())
 
 cleaned_data = {}
-
+root_mean_square_errors = {}
 n = 1
 for name, params in decay_data.items():
     # These are datasets this doesn't seem to work for
@@ -134,117 +147,176 @@ for name, params in decay_data.items():
     cleaned_data.update({name: {'t_w': t_w, 'w': w, 'c': colour, 'err': w_error}})
     n += 2
 
+mass = 0
+d_mass = 7.07107e-05
+thickness = 0
+d_thickness = 0
+moment_inertia = 0
+d_moment_inertia = 0
+magnetic_field = 0
+d_magnetic_field = 1.73205E-05
+current = 0
+alpha = 1
+disc_radius = 152e-3
+d_disc_radius = 0.1e-3
+pole_area = 1.13097e-4
+d_pole_area = 2 * pole_area * 0.5e-3 / 12e-3
+
+material_data = {
+    "st": (0.56975, 0.006581752, 8.16896E-07, 1.01e-3, 0.01e-3, 1.32e6),
+    "cu": (0.58105, 0.00671229, 8.16897E-07, 0.9e-3, 0.01e-3, 58.7e6),
+    "br": (0.53035, 0.006126603, 8.1689E-07, 0.89e-3, 0.02e-3, 15.9e6)
+}
+magnetic_data = {
+    "0": 0.029213333,
+    "047": 0.046533333,
+    "098": 0.066466667,
+    "148": 0.0902076,
+    "198": 0.1126426,
+    "398": 0.20223826
+}
+
+plots = []
 plot_names = list(cleaned_data.keys())
 i = 0
-
 # Plot ln(w(t)) vs t
 # Only datasets with name and start_point listed in decay_starts.csv are plotted
 # Plots measurement pairs together
-while i < len(plot_names) - 1:
-    plot1 = plot_names[i]
-    plot2 = plot_names[i + 1]
+while i < len(plot_names):
+    plot = plot_names[i][:len(plot_names[i])-4]
+    low_speed = False
+    high_speed = True
+    material = ""
+    if plot[:3] == 'low':
+        low_speed = True
+        high_speed = False
+        # Low velocity data
+        # Work out material
+        material = plot[3:5]
+        if plot[-2] == 'a':
+            magnetic_field = magnetic_data["047"]
+        else:
+            magnetic_field = magnetic_data["0"]
+    else:
+        material = plot[:2]
+        if material == 'al':                    # Aluminium has more options
+            moment_inertia = 0.004739042
+            d_moment_inertia = 8.22256e-07
+            if plot[2:4] == 'th':               # Thick Al disc
+                mass = 0.40755
+                disc_radius = 152.5e-3
+                thickness = 2.06e-3
+                d_thickness = 0.02e-3
+                if plot[-1] in ['a', 'b']:
+                    magnetic_field = magnetic_data[plot[4:7]]
+                else:
+                    magnetic_field = magnetic_data["0"]
+            else:                               # Thin Al disc
+                mass = 0.194
+                thickness = 0.99e-3
+                d_thickness = 0.01e-3
+                if plot[-1] in ['a', 'b']:
+                    magnetic_field = magnetic_data[plot[2:5]]
+                else:
+                    magnetic_field = magnetic_data["0"]
+    if material != 'al':
+        mass, moment_inertia, d_moment_inertia, thickness, d_thickness, conductivity = material_data[material]
+        if plot[-1] in ['a', 'b']:
+            magnetic_field = magnetic_data[plot[2:5]]
+        else:
+            magnetic_field = magnetic_data["0"]
+    else:
+        conductivity = 36.9e6
 
-    x1, y1, c1, err1 = cleaned_data[plot1]['t_w'], np.log(cleaned_data[plot1]['w']), cleaned_data[plot1]['c'], cleaned_data[plot1]['err'] / cleaned_data[plot1]['w']
-    x2, y2, c2, err2 = cleaned_data[plot2]['t_w'], np.log(cleaned_data[plot2]['w']), cleaned_data[plot2]['c'], cleaned_data[plot2]['err'] / cleaned_data[plot2]['w']
+    plot = plot + ".csv"
 
-    # Curve fit against motion-dependent friction only model (straight line), look at pdf I nicked from T-05
-    popt1, pcov1 = curve_fit(g, x1, y1, sigma=err1, maxfev=30000)
-    popt2, pcov2 = curve_fit(g, x2, y2, sigma=err2, maxfev=30000)
+    x, y = cleaned_data[plot]['t_w'], cleaned_data[plot]['w']
+    c, err = cleaned_data[plot]['c'], cleaned_data[plot]['err']
 
-    plt.figure(figsize=(15, 15))
+    ln_y, ln_err = np.log(y), [(val1 / val2) for val1, val2 in zip(err, y)]
 
-    plt.errorbar(x1, y1, yerr=err1, fmt="x", color=c1, label=plot1[:len(plot1)-4])
-    plt.errorbar(x2, y2, yerr=err2, fmt="x", color=c2, label=plot2[:len(plot2)-4])
+    # curve_fit for w data
+    popt, pcov = curve_fit(exp_, x, y, sigma=err, maxfev=30000)
+    perror = np.sqrt(np.diag(pcov))
 
-    model1 = g(x1, popt1[0], popt1[1])
-    model2 = g(x2, popt2[0], popt2[1])
+    # curve_fit for ln(w) data. sigma is set so it prioritizes high vel data points
+    ln_popt, ln_pcov = curve_fit(line, x, ln_y, sigma=ln_err, maxfev=30000)
+    ln_perror = np.sqrt(np.diag(ln_pcov))
 
-    plt.plot(x1, model1)
-    plt.plot(x2, model2)
+    # Calculating constants
+    w_0, a, d = popt[0], popt[1], popt[2]
+    d_w_0, d_a, d_d = perror[0], perror[1], perror[2]
+    w_0_e, w_0_e2 = w_0 / np.e, w_0 / (np.e ** 2)
+    d_w_0_e = w_0_e * (d_w_0 / w_0)
+    d_w_0_e2 = w_0_e2 * (d_w_0_e / w_0_e)
+    tau, tau2 = a * np.log(w_0 / (w_0_e + d)), a * np.log(w_0_e / (w_0_e2 + d))
+    d_tau = tau * np.sqrt((d_a / a)**2 + ((1 / np.log(w_0 / (w_0_e + d)))**2) * (((d_w_0_e**2 + d_d**2) / (w_0_e + d)**2) + (d_w_0 / w_0)**2))
+    d_tau2 = tau2 * np.sqrt((d_a / a)**2 + ((1 / np.log(w_0_e / (w_0_e2 + d)))**2) * (((d_w_0_e2**2 + d_d**2) / (w_0_e2 + d)**2) + (d_w_0_e / w_0_e)**2))
+    tau = (tau + tau2) / 2
+    d_tau = np.sqrt(d_tau**2 + d_tau2**2)
+    L = (4/5)*disc_radius
+    d_L = L * (d_disc_radius / disc_radius)
 
-    plt.ylabel("ln(w(t))")
-    plt.xlabel("t")
+    c_analytical = alpha * conductivity * thickness * pole_area * (L ** 2) * (moment_inertia ** 2)
+    d_c_analytical = c_analytical*np.sqrt((d_thickness/thickness)**2+(2*L*d_L)**2+(2*moment_inertia*d_moment_inertia)**2)
 
-    plt.legend()
+    high_speed_zeta, low_speed_zeta = 0, 0
+    if high_speed:
+        high_speed_zeta = -ln_popt[0] * moment_inertia
+        d_high_speed_zeta = high_speed_zeta * np.sqrt(ln_perror[0]**2 + d_moment_inertia**2)
+    if low_speed:
+        low_speed_zeta = moment_inertia * tau - c_analytical * (magnetic_field ** 2)
+        d_low_speed_zeta = np.sqrt((moment_inertia*tau*np.sqrt((d_moment_inertia/moment_inertia)**2+(d_tau/tau)**2))**2 + (c_analytical*(magnetic_field**2)*np.sqrt((d_c_analytical/c_analytical)**2+(2*magnetic_field*d_magnetic_field/(magnetic_field**2))**2))**2)
 
+    N = 0
+    d_N = 0
+    if high_speed:
+        N = d*(high_speed_zeta + c_analytical * (magnetic_field**2))
+        d_N = N * np.sqrt((d_d/d)**2 + (d_c_analytical/c_analytical)**2 + 4*(magnetic_field**2)*(d_magnetic_field**2))
+    if low_speed:
+        popt2, pcov2 = curve_fit(line, x, y, sigma=err, maxfev=30000)
+        perror2 = np.sqrt(np.diag(pcov2))
+        N = -popt2[0] * moment_inertia
+        d_N = N * np.sqrt((perror2[0]/popt2[0])**2+(d_moment_inertia/moment_inertia)**2)
+        c_alternate = ((N / d) + low_speed_zeta) / (magnetic_field ** 2)
+        d_c_alternate = c_alternate * np.sqrt(((N / d)**2*((d_N/N)**2+(d_d/d)**2)+d_low_speed_zeta**2)/((N/d)+low_speed_zeta)**2 + 4*(magnetic_field**2)*(d_magnetic_field**2))
+
+    # Produce model data
+    model1 = []
+    model2 = []
+    if high_speed:
+        model1 = [combined(val, w_0, N, high_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
+    else:
+        model1 = [constant(val, w_0, N, moment_inertia) for val in x]
+        model2 = [combined(val, w_0, N, low_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
+
+    # Evaluate model by taking Root Mean Squared Error (RMSE)
+    RMSE1 = 0
+    RMSE2 = 0
+    if high_speed:
+        RMSE1 = rmse(y, model1)
+    if low_speed:
+        RMSE1 = rmse(y, model1)
+        RMSE2 = rmse(y, model2)
+
+    # Plotting
+
+    print(plot)
+
+    fig = plt.figure(figsize=(8, 8))
+
+    print(len(x), len(y))
+    plt.plot(x, y, "kx", label="Measured Data", **plot_format)
+    if high_speed:
+        plt.plot(x, model1, "ko-", label="Combined Model", **plot_format)
+    if low_speed:
+        plt.plot(x, model1, "ko-", label="Constant Model", **plot_format)
+        plt.plot(x, model2, "k^--", label="Combined Model", **plot_format)
+
+    plt.xlabel("Time / s", **label_format)
+    plt.ylabel(r'$\omega$(t)', **label_format)
+
+    plt.legend(**legend_format)
     plt.show()
 
-    i += 2
-
-# Uncomment to plot w(t) vs t
-"""
-while i < len(plot_names) - 1:
-    plot1 = plot_names[i]
-    plot2 = plot_names[i + 1]
-
-    if plot1 == "br01.csv":
-        print(plot1, plot2)
-
-        x1, y1, c1, err1 = cleaned_data[plot1]['t_w'], cleaned_data[plot1]['w'], cleaned_data[plot1]['c'], cleaned_data[plot1]['err']
-        x2, y2, c2, err2 = cleaned_data[plot2]['t_w'], cleaned_data[plot2]['w'], cleaned_data[plot2]['c'], cleaned_data[plot2]['err']
-
-        plt.figure(figsize=(15, 15))
-
-        # curve_fit can't fit to these sets for some reason
-        invalid1 = ["br01.csv", "br047a.csv", "br148a.csv", "br198a.csv", "st098a.csv", "st148a.csv", "st398a.csv"]
-        invalid2 = ["br02.csv", "br148b.csv", "st098b.csv", "st398b.csv"]
-
-        plt.errorbar(x1, y1, fmt="x", yerr=None, linewidth=0.8, label=plot1)
-        plt.errorbar(x2, y2, fmt="x", yerr=None, linewidth=0.8, label=plot2)
-
-        if plot1 not in invalid1:
-            popt1, pcov1 = curve_fit(f, x1, y1, sigma=cleaned_data[plot1]['err'], maxfev=30000)
-            model1 = [f(val, popt1[0], popt1[1], popt1[2]) for val in x1]
-            plt.plot(x1, model1, label=plot1 + " model")
-
-        if plot2 not in invalid2:
-            popt2, pcov2 = curve_fit(f, x2, y2, sigma=cleaned_data[plot2]['err'], maxfev=30000)
-            model2 = [f(val, popt2[0], popt2[1], popt2[2]) for val in x2]
-            plt.plot(x2, model2, label=plot2 + " model")
-
-        plt.legend()
-
-        plt.show()
-
-    i += 2
-"""
-"""
-for i in range(N - x, 0, -1):
-    # print(i)
-    six_values = w[i:i + x]
-    rolling_avg = np.mean(six_values)
-    rolling_std = np.std(six_values, ddof=1)
-    deviations = [abs(val - rolling_avg) / rolling_std for val in six_values]
-    for j, dev in enumerate(deviations):
-        if six_values[j] > rolling_avg and dev > 3.5:  # Big big spike
-            #       print("Found spike")
-            w = np.delete(w, i + j)
-            t_w = np.delete(t_w, i + j)
-            N = w.len
-            i += 1  # Recalculate 6 points
-        elif six_values[j] < rolling_avg and dev > 1.2:  # Catch drops due to missing data points
-            #      print("Found dip, dev = {}".format(dev))
-            ratio = rolling_avg / six_values[j]
-            rounded_ratio = round(ratio)
-            if abs(rounded_ratio - ratio) < 0.1:  # Arbitrary difference to check for roughly integer difference
-                #         print("Rounding found, ", ratio)
-                w[i + j] = w[i + j] * ratio
-                i += 1  # Recalculate 6 points
-"""
-"""else:
-                                # If drop is factor
-                                if vel < w[-1]:
-                                    factor = w[-1] / vel
-                                    rounded_factor = round(factor)
-                                    if abs(factor - rounded_factor) < 0.1:
-                                        print("vel = {} --> {}, w[-1] = {}".format(vel, rounded_factor * vel, w[-1]))
-                                        w = np.insert(w, n, rounded_factor * vel)
-                                        t_w = np.insert(t_w, n, time)
-                                elif vel > w[-1]:
-                                    factor = vel / w[-1]
-                                    rounded_factor = round(factor)
-                                    if abs(factor - rounded_factor) < 0.1:
-                                        print("vel = {} --> {}, w[-1] = {}".format(vel, rounded_factor * vel, w[-1]))
-                                        w[-1] = w[-1] * rounded_factor
-                                        w = np.insert(w, n, vel)
-                                        t_w = np.insert(t_w, n, time)"""
+    i += 1
