@@ -4,7 +4,7 @@ import numpy as np
 import os
 import json
 from scipy.optimize import curve_fit
-from model import constant, combined, rmse
+from model import constant, combined, rmse, motion_dependent
 
 
 def exp_(t, w_0, a, d):
@@ -45,11 +45,10 @@ with open("decay_data.json", 'r') as file:
 names = list(data.keys())
 
 cleaned_data = {}
-root_mean_square_errors = {}
 n = 1
 for name, params in decay_data.items():
     # These are datasets this doesn't seem to work for
-    invalid = []#["br01.csv", "br098a.csv", "br098b.csv", "st01.csv"]
+    invalid = []
     if name in invalid:
         continue
     time_values = data[name]['t']
@@ -74,7 +73,7 @@ for name, params in decay_data.items():
         time = time_values[i]
         volt = volt_values[i]
         if True:
-            if volt < 35:
+            if volt < 20:
                 if abs(volt_values[i+1] - volt) > 1:
                     if temp_t == 0:
                         temp_t = time
@@ -161,11 +160,13 @@ disc_radius = 152e-3
 d_disc_radius = 0.1e-3
 pole_area = 1.13097e-4
 d_pole_area = 2 * pole_area * 0.5e-3 / 12e-3
-
+# mass, moment_inertia, d_moment_inertia, thickness, d_thickness, conductivity
 material_data = {
     "st": (0.56975, 0.006581752, 8.16896E-07, 1.01e-3, 0.01e-3, 1.32e6),
     "cu": (0.58105, 0.00671229, 8.16897E-07, 0.9e-3, 0.01e-3, 58.7e6),
-    "br": (0.53035, 0.006126603, 8.1689E-07, 0.89e-3, 0.02e-3, 15.9e6)
+    "br": (0.53035, 0.006126603, 8.1689E-07, 0.89e-3, 0.02e-3, 15.9e6),
+    "al": (0.194, 0.002241088, 8.16855E-07, 0.99, 0.01e-3, 36.9e6),
+    "alth": (0.40755, 0.004739042, 8.22256e-07, 2.06e-3, 0.02e-3, 36.9e6)
 }
 magnetic_data = {
     "0": 0.029213333,
@@ -178,6 +179,18 @@ magnetic_data = {
 
 plots = []
 plot_names = list(cleaned_data.keys())
+root_mean_square_errors = {
+    "1": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
+    "2": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
+    "3": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model2_name": []},
+    "4": {"field1": [], "field2": [], "model1": [], "model1_name": [], "model2": [], "model1_name": []}
+}
+
+table1 = ['al047a.csv', 'al047b.csv', 'al098a.csv', 'al098b.csv', 'al148a.csv', 'al148b.csv', 'al198a.csv', 'al198b.csv', 'al398a.csv', 'al398b.csv']
+table2 = ['br047a.csv', 'br047b.csv', 'br098a.csv', 'br098b.csv', 'br148a.csv', 'br148b.csv', 'br198a.csv', 'br198b.csv', 'br398a.csv', 'br398b.csv']
+table3 = ['st047a.csv', 'st047b.csv', 'st098a.csv', 'st098b.csv', 'st148a.csv', 'st148b.csv', 'st198a.csv', 'st198b.csv', 'st398a.csv', 'st398b.csv']
+table4 = ['cu047a.csv', 'cu047b.csv', 'cu098a.csv', 'cu098b.csv', 'cu148a.csv', 'cu148b.csv', 'cu198a.csv', 'cu198b.csv', 'cu398a.csv', 'cu398b.csv']
+
 i = 0
 # Plot ln(w(t)) vs t
 # Only datasets with name and start_point listed in decay_starts.csv are plotted
@@ -187,6 +200,7 @@ while i < len(plot_names):
     low_speed = False
     high_speed = True
     material = ""
+
     if plot[:3] == 'low':
         low_speed = True
         high_speed = False
@@ -200,33 +214,27 @@ while i < len(plot_names):
     else:
         material = plot[:2]
         if material == 'al':                    # Aluminium has more options
-            moment_inertia = 0.004739042
-            d_moment_inertia = 8.22256e-07
             if plot[2:4] == 'th':               # Thick Al disc
-                mass = 0.40755
-                disc_radius = 152.5e-3
-                thickness = 2.06e-3
-                d_thickness = 0.02e-3
+                material = 'alth'
                 if plot[-1] in ['a', 'b']:
                     magnetic_field = magnetic_data[plot[4:7]]
                 else:
                     magnetic_field = magnetic_data["0"]
+            elif plot[2:6] == 'slow':
+                magnetic_field = magnetic_data["0"]
+                material = 'al'
             else:                               # Thin Al disc
-                mass = 0.194
-                thickness = 0.99e-3
-                d_thickness = 0.01e-3
+                material = 'al'
                 if plot[-1] in ['a', 'b']:
                     magnetic_field = magnetic_data[plot[2:5]]
                 else:
                     magnetic_field = magnetic_data["0"]
-    if material != 'al':
-        mass, moment_inertia, d_moment_inertia, thickness, d_thickness, conductivity = material_data[material]
-        if plot[-1] in ['a', 'b']:
-            magnetic_field = magnetic_data[plot[2:5]]
-        else:
-            magnetic_field = magnetic_data["0"]
-    else:
-        conductivity = 36.9e6
+
+    mass, moment_inertia, d_moment_inertia, thickness, d_thickness, conductivity = material_data[material]
+    if plot[-1] in ['a', 'b']:
+        magnetic_field = magnetic_data[plot[-4:-1]]
+    elif material[:2] != 'al':
+        magnetic_field = magnetic_data["0"]
 
     plot = plot + ".csv"
 
@@ -236,15 +244,19 @@ while i < len(plot_names):
     ln_y, ln_err = np.log(y), [(val1 / val2) for val1, val2 in zip(err, y)]
 
     # curve_fit for w data
-    popt, pcov = curve_fit(exp_, x, y, sigma=err, maxfev=30000)
-    perror = np.sqrt(np.diag(pcov))
-
-    # curve_fit for ln(w) data. sigma is set so it prioritizes high vel data points
-    ln_popt, ln_pcov = curve_fit(line, x, ln_y, sigma=ln_err, maxfev=30000)
-    ln_perror = np.sqrt(np.diag(ln_pcov))
+    if high_speed:
+        popt, pcov = curve_fit(exp_, x, y, sigma=err, maxfev=100000)
+        perror = np.sqrt(np.diag(pcov))
+        ln_popt, ln_pcov = curve_fit(line, x, ln_y, sigma=err, maxfev=100000)
+        ln_perror = np.sqrt(np.diag(ln_pcov))
+    else:
+        popt, pcov = curve_fit(exp_, x, y, sigma=err, maxfev=100000)
+        perror = np.sqrt(np.diag(pcov))
+        ln_popt, ln_pcov = curve_fit(line, x, ln_y, sigma=err, maxfev=100000)
+        ln_perror = np.sqrt(np.diag(ln_pcov))
 
     # Calculating constants
-    w_0, a, d = popt[0], popt[1], popt[2]
+    w_0, a, d = popt[0] - popt[2], popt[1], popt[2]
     d_w_0, d_a, d_d = perror[0], perror[1], perror[2]
     w_0_e, w_0_e2 = w_0 / np.e, w_0 / (np.e ** 2)
     d_w_0_e = w_0_e * (d_w_0 / w_0)
@@ -286,18 +298,69 @@ while i < len(plot_names):
     model2 = []
     if high_speed:
         model1 = [combined(val, w_0, N, high_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
+        model1_name = "Combined Friction & Applied Field"
+        model2 = [motion_dependent(val, w_0, high_speed_zeta, moment_inertia) for val in x]
+        model2_name = "Motion Dependent Friction Only"
     else:
         model1 = [constant(val, w_0, N, moment_inertia) for val in x]
+        model1_name = "Constant Friction Only"
         model2 = [combined(val, w_0, N, low_speed_zeta, moment_inertia, c_analytical, magnetic_field) for val in x]
+        model2_name = "Combined Friction & Applied Field"
 
     # Evaluate model by taking Root Mean Squared Error (RMSE)
     RMSE1 = 0
     RMSE2 = 0
     if high_speed:
         RMSE1 = rmse(y, model1)
+        RMSE2 = rmse(y, model2)
     if low_speed:
         RMSE1 = rmse(y, model1)
         RMSE2 = rmse(y, model2)
+
+    if plot in table1:
+        if len(root_mean_square_errors["1"]['model1_name']) == 0:
+            root_mean_square_errors["1"]['model1_name'].append(model1_name)
+        if len(root_mean_square_errors["1"]['model2_name']) == 0:
+            root_mean_square_errors["1"]['model2_name'].append(model2_name)
+        if plot[-5] == 'a':
+            root_mean_square_errors["1"]['field1'].append(magnetic_field)
+            root_mean_square_errors["1"]['model1'].append(RMSE1)
+        if plot[-5] == 'b':
+            root_mean_square_errors["1"]['field2'].append(magnetic_field)
+            root_mean_square_errors["1"]['model2'].append(RMSE2)
+    elif plot in table2:
+        if len(root_mean_square_errors["2"]['model1_name']) == 0:
+            root_mean_square_errors["2"]['model1_name'].append(model1_name)
+        if len(root_mean_square_errors["2"]['model2_name']) == 0:
+            root_mean_square_errors["2"]['model2_name'].append(model2_name)
+        if plot[-5] == 'a':
+            root_mean_square_errors["2"]['field1'].append(magnetic_field)
+            root_mean_square_errors["2"]['model1'].append(RMSE1)
+        if plot[-5] == 'b':
+            root_mean_square_errors["2"]['field2'].append(magnetic_field)
+            root_mean_square_errors["2"]['model2'].append(RMSE2)
+    elif plot in table3:
+        if len(root_mean_square_errors["3"]['model1_name']) == 0:
+            root_mean_square_errors["3"]['model1_name'].append(model1_name)
+        if len(root_mean_square_errors["3"]['model2_name']) == 0:
+            root_mean_square_errors["3"]['model2_name'].append(model2_name)
+        if plot[-5] == 'a':
+            root_mean_square_errors["3"]['field1'].append(magnetic_field)
+            root_mean_square_errors["3"]['model1'].append(RMSE1)
+        if plot[-5] == 'b':
+            root_mean_square_errors["3"]['field2'].append(magnetic_field)
+            root_mean_square_errors["3"]['model2'].append(RMSE2)
+    elif plot in table4:
+        if len(root_mean_square_errors["4"]['model1_name']) == 0:
+            root_mean_square_errors["4"]['model1_name'].append(model1_name)
+        if len(root_mean_square_errors["4"]['model2_name']) == 0:
+            root_mean_square_errors["4"]['model2_name'].append(model2_name)
+        if plot[-5] == 'a':
+            root_mean_square_errors["4"]['field1'].append(magnetic_field)
+            root_mean_square_errors["4"]['model1'].append(RMSE1)
+        if plot[-5] == 'b':
+            root_mean_square_errors["4"]['field2'].append(magnetic_field)
+            root_mean_square_errors["4"]['model2'].append(RMSE2)
 
     # Plotting
 
@@ -305,18 +368,21 @@ while i < len(plot_names):
 
     fig = plt.figure(figsize=(8, 8))
 
-    print(len(x), len(y))
-    plt.plot(x, y, "kx", label="Measured Data", **plot_format)
+    plt.errorbar(x, y, fmt="kx", yerr=err, label="Measured Data", elinewidth=0.9, capsize=2.0, **plot_format)
     if high_speed:
-        plt.plot(x, model1, "ko-", label="Combined Model", **plot_format)
+        plt.plot(x, model1, "k-", linewidth=0.9, label="Combined Model", **plot_format)
+        plt.plot(x, model2, "k--", linewidth=0.9, label="Motion Dependent Friction", **plot_format)
     if low_speed:
-        plt.plot(x, model1, "ko-", label="Constant Model", **plot_format)
-        plt.plot(x, model2, "k^--", label="Combined Model", **plot_format)
+        plt.plot(x, model1, "k-", linewidth=0.9, label="Constant Model", **plot_format)
+        plt.plot(x, model2, "k--", linewidth=0.9, label="Combined Model", **plot_format)
 
     plt.xlabel("Time / s", **label_format)
     plt.ylabel(r'$\omega$(t)', **label_format)
 
     plt.legend(**legend_format)
-    plt.show()
+    #plt.show()
 
     i += 1
+
+with open("rmse.json", 'w') as file:
+    json.dump(root_mean_square_errors, file)
